@@ -4,7 +4,7 @@ pipeline{
         maven 'M2_HOME'
     }
     stages{
-        stage('maven build'){
+        stage('check pwd'){
             steps{
                 sh 'pwd'
             }
