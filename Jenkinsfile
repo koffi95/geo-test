@@ -6,7 +6,19 @@ pipeline{
     stages{
         stage('maven build'){
             steps{
+                sh 'pwd'
+            }
+
+        }
+            stage('maven build'){
+            steps{
                 sh 'mvn clean install package'
+            }
+
+        }
+        stage('list dir'){
+            steps{
+                sh 'ls'
             }
 
         }
