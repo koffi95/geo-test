@@ -22,7 +22,7 @@ environment {
                }
             }
           }
-          
+
         stage('Check Quality Gate') {
             steps {
                 echo 'Checking quality gate...'
@@ -65,4 +65,5 @@ environment {
                 }
             }
         } 
+    }
 }
