@@ -1,41 +1,68 @@
-pipeline{
-    agent any
-    tools {
-        maven 'M2_HOME'
+pipeline {
+    triggers {
+  pollSCM('* * * * *')
     }
-    stages{
-        stage('check pwd'){
-            steps{
-                sh 'pwd'
-            }
+   agent any
+    tools {
+  maven 'M2_HOME'
+}
+environment {
+    registry = '582634924370.dkr.ecr.us-east-1.amazonaws.com/jenkins_fullpipe'
+    registryCredential = 'aws_ecr_id'
+    dockerimage = ''
 
-        }
-        stage('maven build'){
-            steps{
-                sh 'mvn clean install package'
-            }
+}
+    stages {
 
+        stage("build & SonarQube analysis") {  
+            steps {
+                echo 'build & SonarQube analysis...'
+               withSonarQubeEnv('SonarServer') {
+                   sh 'mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=koffi95_geolocation -X'
+               }
+            }
+          }
+    }
+        stage('Check Quality Gate') {
+            steps {
+                echo 'Checking quality gate...'
+                 script {
+                     timeout(time: 20, unit: 'MINUTES') {
+                         def qg = waitForQualityGate()
+                         if (qg.status != 'OK') {
+                             error "Pipeline stopped because of quality gate status: ${qg.status}"
+                         }
+                     }
+                 }
+            }
         }
-        stage('upload artifact to nexus'){
+        
+         
+        stage('maven package') {
+            steps {
+                sh 'mvn clean'
+                sh 'mvn install -DskipTests'
+                sh 'mvn package -DskipTests'
+            }
+        }
+        stage('Build Image') {
             
-            steps{
+            steps {
                 script{
-                    def mavenPom = readMavenPom file: 'pom.xml'
-                    nexusArtifactUploader artifacts: 
-                    [[artifactId: "${mavenPom.artifactId}", 
-                    classifier: '', 
-                    file: "target/${mavenPom.artifactId}-${mavenPom.version}.${mavenPom.packaging}", 
-                    type: "${mavenPom.packaging}"]], 
-                    credentialsId: 'NexusID', 
-                    groupId: "${mavenPom.groupId}", 
-                    nexusUrl: '198.58.119.40:8081', 
-                    nexusVersion: 'nexus3', 
-                    protocol: 'http', 
-                    repository: 'koffi-2', 
-                    version: "${mavenPom.version}"
+                  def mavenPom = readMavenPom file: 'pom.xml'
+                  POM_VERSION = "${mavenPom.version}"
+                  echo "${POM_VERSION}"
+                  dockerImage = docker.build registry + ":${POM_VERSION}"
+                } 
+            }
+        }
+        stage('push image') {
+            steps{
+                script{ 
+                    docker.withRegistry("https://"+registry,"ecr:us-east-1:"+registryCredential) {
+                        dockerImage.push()
+                    }
                 }
             }
-
-        }
-    }
+        } 
 }
